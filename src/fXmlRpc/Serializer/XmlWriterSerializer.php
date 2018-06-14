@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright (C) 2012-2016
+ * Copyright (C) 2012-2013
  * Lars Strojny, InterNations GmbH <lars.strojny@internations.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
 namespace fXmlRpc\Serializer;
 
 use XMLWriter;
@@ -31,13 +32,17 @@ use fXmlRpc\ExtensionSupportInterface;
 use fXmlRpc\Exception\SerializationException;
 use fXmlRpc\Exception\MissingExtensionException;
 
-final class XmlWriterSerializer implements SerializerInterface, ExtensionSupportInterface
+class XmlWriterSerializer implements SerializerInterface, ExtensionSupportInterface
 {
-    /** @var XMLWriter */
+    /**
+     * @var XMLWriter
+     */
     private $writer;
 
-    /** @var array */
-    private $extensions = [];
+    /**
+     * @var array
+     */
+    private $extensions = array();
 
     public function __construct()
     {
@@ -49,26 +54,34 @@ final class XmlWriterSerializer implements SerializerInterface, ExtensionSupport
         $this->writer->openMemory();
     }
 
-    /** {@inheritdoc} */
+    /**
+     * {@inheritdoc}
+     */
     public function enableExtension($extension)
     {
         $this->extensions[$extension] = true;
     }
 
-    /** {@inheritdoc} */
+    /**
+     * {@inheritdoc}
+     */
     public function disableExtension($extension)
     {
         $this->extensions[$extension] = false;
     }
 
-    /** {@inheritdoc} */
+    /**
+     * {@inheritdoc}
+     */
     public function isExtensionEnabled($extension)
     {
         return isset($this->extensions[$extension]) ? $this->extensions[$extension] : true;
     }
 
-    /** {@inheritdoc} */
-    public function serialize($methodName, array $params = [])
+    /**
+     * {@inheritdoc}
+     */
+    public function serialize($methodName, array $params = array())
     {
         $writer = $this->writer;
 
@@ -77,17 +90,17 @@ final class XmlWriterSerializer implements SerializerInterface, ExtensionSupport
         $writer->writeElement('methodName', $methodName);
         $writer->startElement('params');
 
-        $endNode = static function () use ($writer) {
+        $endNode = function() use ($writer) {
             $writer->endElement();
         };
-        $valueNode = static function () use ($writer) {
+        $valueNode = function() use ($writer) {
             $writer->startElement('value');
         };
-        $paramNode = static function () use ($writer) {
+        $paramNode = function() use ($writer) {
             $writer->startElement('param');
         };
 
-        $toBeVisited = [];
+        $toBeVisited = array();
         foreach (array_reverse($params) as $param) {
             $toBeVisited[] = $endNode;
             $toBeVisited[] = $param;
@@ -131,18 +144,15 @@ final class XmlWriterSerializer implements SerializerInterface, ExtensionSupport
 
             } elseif ($type === 'array') {
                 /** Find out if it is a struct or an array */
-                $smallestIndex = 0;
-                foreach ($node as $smallestIndex => &$child) {
-                    break;
-                }
-                $isStruct = !is_int($smallestIndex);
-                if (!$isStruct) {
-                    $length = count($node) + $smallestIndex;
-                    for ($index = $smallestIndex; $index < $length; ++$index) {
-                        if (!isset($node[$index])) {
-                            $isStruct = true;
-                            break;
-                        }
+                $min = 0;
+                foreach ($node as $min => &$child) break;
+                $isStruct = false;
+				if(!is_numeric($min)) $min = 0;
+                $length = count($node) + $min;
+                for ($a = $min; $a < $length; ++$a) {
+                    if (!isset($node[$a])) {
+                        $isStruct = true;
+                        break;
                     }
                 }
 
@@ -153,7 +163,7 @@ final class XmlWriterSerializer implements SerializerInterface, ExtensionSupport
                     foreach (array_reverse($node) as $value) {
                         $toBeVisited[] = $value;
                     }
-                    $toBeVisited[] = static function () use ($writer) {
+                    $toBeVisited[] = function() use ($writer) {
                         $writer->startElement('array');
                         $writer->startElement('data');
                     };
@@ -166,14 +176,14 @@ final class XmlWriterSerializer implements SerializerInterface, ExtensionSupport
                     foreach (array_reverse($node, true) as $key => $value) {
                         $toBeVisited[] = $endNode;
                         $toBeVisited[] = $value;
-                        $toBeVisited[] = static function () use ($writer, $key) {
+                        $toBeVisited[] = function() use ($writer, $key) {
                             $writer->writeElement('name', $key);
                         };
-                        $toBeVisited[] = static function () use ($writer) {
+                        $toBeVisited[] = function() use ($writer) {
                             $writer->startElement('member');
                         };
                     }
-                    $toBeVisited[] = static function () use ($writer) {
+                    $toBeVisited[] = function() use ($writer) {
                         $writer->startElement('struct');
                     };
                     $toBeVisited[] = $valueNode;
@@ -206,13 +216,6 @@ final class XmlWriterSerializer implements SerializerInterface, ExtensionSupport
         $writer->endElement();
         $writer->endElement();
 
-        $xml = $writer->flush(true);
-
-        // NativeSerializer does not inject a newline after the declaration
-        if ($xml[38] === "\n") {
-            $xml = substr($xml, 0, 38) . substr($xml, 39);
-        }
-
-        return $xml;
+        return $writer->flush(true);
     }
 }
